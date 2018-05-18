@@ -1,7 +1,7 @@
 <?php
 namespace Home\Controller;
 use Think\Controller;
-class IndexController extends Controller {
+class WxController extends Controller {
     public function index(){
         //从配置文件中取得信息
         $token = C('token');
@@ -11,7 +11,6 @@ class IndexController extends Controller {
         $timestamp = $_GET['timestamp'];
         $echostr = $_GET['echostr'];
         $signature = $_GET['signature'];
-        echo 'dd' . $token;
 
         //形成数组，然后按字典序排序
         $array = array($nonce, $timestamp, $token);
@@ -34,8 +33,8 @@ class IndexController extends Controller {
     public function reponseMsg() {
         //1、获取到推送的xml格式信息
         //2、处理消息类型，并返回
-        $postArr = $GLOBALS['HTTP_RAW_POST_DATA'];
-        $postObj = simplexml_load_string($postArr);
+        $postArr = file_get_contents('php://input') ? file_get_contents('php://input') : $GLOBALS["HTTP_RAW_POST_DATA"];
+        $postObj = simplexml_load_string($postArr, 'SimpleXMLElement', LIBXML_NOCDATA);
         //判断该数据包是否是订阅的事件推送
         if (strtolower($postObj->MsgType) == 'event') {
             //如果是官族subscribe事件
@@ -55,7 +54,18 @@ class IndexController extends Controller {
 							</xml>';
                 $info     = sprintf($template, $toUser, $fromUser,$time,$msgtype,$content);
                 echo $info;
+                exit;
             }
+        } elseif (strtolower($postObj->MsgType) == 'text') {
+            //回复客户信息
+            $toUser   = $postObj->FromUserName;
+            $fromUser = $postObj->ToUserName;
+            $time     = time();
+            $content  = '欢迎回复！';
+            $template = '<xml><ToUserName><![CDATA[%s]]></ToUserName><FromUserName><![CDATA[%s]]></FromUserName><CreateTime>%s</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[%s]]></Content></xml>';
+            $info     = sprintf($template, $toUser, $fromUser,$time,$content);
+            echo $info;
+            exit;
         }
     }
 }

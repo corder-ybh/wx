@@ -11,5 +11,5 @@
 //3、引入tp的核心文件
 define('APP_ANME', 'Wx');
 define('APP_PATH', './App/');
-define('APP_DEBUG', True);
+define('APP_DEBUG', False);
 require('./ThinkPHP/ThinkPHP.php');
