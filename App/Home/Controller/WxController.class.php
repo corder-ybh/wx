@@ -1,14 +1,10 @@
 <?php
 namespace Home\Controller;
-
 use Think\Controller;
+require ('./sphinxapi.php');
 
-require('./sphinxapi.php');
-
-class WxController extends Controller
-{
-    public function index()
-    {
+class WxController extends Controller {
+    public function index(){
         //从配置文件中取得信息
         $token = C('token');
 
@@ -29,6 +25,7 @@ class WxController extends Controller
             exit;
         } else {
             //微信给发送的信息
+            //:print_r("1");
             $this->reponseMsg();
         }
     }
@@ -36,52 +33,69 @@ class WxController extends Controller
     /**
      * 接受事件推送并回复
      */
-    public function reponseMsg()
-    {
+    public function reponseMsg() {
         //1、获取到推送的xml格式信息
         //2、处理消息类型，并返回
         $postStr = file_get_contents('php://input') ? file_get_contents('php://input') : $GLOBALS["HTTP_RAW_POST_DATA"];
+        // print_r($postStr);
         $postObj = simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
-        $toUser = $postObj->FromUserName;
-        $fromUser = $postObj->ToUserName;
-
-        $postObj = (object)null;
-
+        $toUser     = $postObj->FromUserName;
+        $fromUser   = $postObj->ToUserName;
+//        var_dump($postObj);
+        $time       = time();
 
         //判断该数据包是否是订阅的事件推送
+
         if (strtolower($postObj->MsgType) == 'event') {
             //如果是关注subscribe事件
             if (strtolower($postObj->Event) == 'subscribe') {
-                //关注事件时自动回复回复客户信息
-                $content = '欢迎关注呦桃优惠券！本公众号专业提供各类淘宝天猫内部优惠券，您可以直接回复您想购买的商品名称来查找对应商品的优惠券！如：回复“女装”获取女装商品的优惠券！回复:？调出帮助菜单';
-                $this->returnTxMsg($toUser, $fromUser, $content);
+                //回复客户信息
+                $toUser   = $postObj->FromUserName;
+                $fromUser = $postObj->ToUserName;
+                $msgtype  = 'text';
+                $content  = '欢迎关注！';
+                $template = '<xml>
+							<ToUserName><![CDATA[%s]]></ToUserName>
+							<FromUserName><![CDATA[%s]]></FromUserName>
+							<CreateTime>%s</CreateTime>
+							<MsgType><![CDATA[%s]]></MsgType>
+							<Content><![CDATA[%s]]></Content>
+							</xml>';
+                $info     = sprintf($template, $toUser, $fromUser,$time,$msgtype,$content);
+                echo $info;
+                exit;
             }
-        }
-
-        //处理文本消息
-        if (strtolower($postObj->MsgType) == 'text') {
+        } elseif (strtolower($postObj->MsgType) == 'text') {
             //回复客户信息
             $cusContent = $postObj->Content;
-            $time = time();
+            $time       = time();
 
             if (!preg_match('//u', $cusContent)) {
                 $cusContent = iconv('gb2312', 'UTF-8//IGNORE', $cusContent);
             }
 
             //处理返回信息
-            if ("?" == $cusContent || "？" == $cusContent) {
-                $content = "呦桃优惠券为您提供各类淘宝天猫优惠券，您可直接回复商品信息查询对应的优惠券信息。如：回复“女装”获取女装商品信息(*^_^*)";
-                $this->returnTxMsg($toUser, $fromUser, $content);
+            if("?" == $cusContent || "？" == $cusContent) {
+                $content  = "呦桃优惠券为您提供各类淘宝天猫优惠券，您可直接回复商品信息查询对应的优惠券信息。如：回复“女装”获取女装商品信息(*^_^*)";
+                $template = '<xml>
+                                 <ToUserName><![CDATA[%s]]></ToUserName>
+                                 <FromUserName><![CDATA[%s]]></FromUserName>
+                                 <CreateTime>%s</CreateTime>
+                                 <MsgType><![CDATA[text]]></MsgType>
+                                 <Content><![CDATA[%s]]></Content>
+                             </xml>';
+                $info     = sprintf($template, $toUser, $fromUser,$time,$content);
+                echo $info;
+                exit;
             } else {
+                //                $cusContent = "手工";
                 $sph = new \SphinxClient();
                 $sph->SetServer('localhost', 9312);
                 $sphRet = $sph->Query($cusContent, "*");
                 $ids = array_keys($sphRet['matches']);
 
-                if (empty($ids)) {
-                    $content = '对不起，暂未找到您搜索的商品的优惠券信息，我们将记录您的需求，为您提供更加完善的优惠券信息！';
-                    $this->returnTxMsg($toUser, $fromUser, $content);
-                }
+                print_r($ids . "xx". $cusContent);
+
 
                 $tkModel = D('Home/Ticket');
                 $ticInfo = $tkModel->getImgUrl($ids);
@@ -98,42 +112,20 @@ class WxController extends Controller
                                  <Articles>";
                 foreach ($ticInfo as $id => $ticArr) {
                     $url = "http://youtaoquan.xin/Home/Index/ticket/id/" . $id;
+                    $desc = "原价: ￥" . $ticArr['sp_price'] . " 优惠券: ￥" . $ticArr['yhq_value'];
                     $item .= "<item>
                                   <Title><![CDATA[{$ticArr['sp_name']}]]></Title>
-                                  <Description><![CDATA[{$ticArr['sp_name']}]]></Description>
+                                  <Description><![CDATA[{$desc}]]></Description>
                                   <PicUrl><![CDATA[{$ticArr['sp_main_picture']}]]></PicUrl>
                                   <Url><![CDATA[{$url}]]></Url>
                                </item>";
                 }
                 $returnStr .= $item;
-                $returnStr .= "</Articles>
+                $returnStr .=  "</Articles>
                                  </xml>";
                 echo $returnStr;
                 exit;
             }
         }
-    }
-
-    /**
-     * 自动回复文本消息
-     * @param $toUserName
-     * @param $fromUserName
-     * @param $content
-     */
-    public function returnTxMsg($toUserName, $fromUserName, $content)
-    {
-        //回复客户信息
-        $msgtype = 'text';
-        $time = time();
-        $template = '<xml>
-							<ToUserName><![CDATA[%s]]></ToUserName>
-							<FromUserName><![CDATA[%s]]></FromUserName>
-							<CreateTime>%s</CreateTime>
-							<MsgType><![CDATA[%s]]></MsgType>
-							<Content><![CDATA[%s]]></Content>
-							</xml>';
-        $info = sprintf($template, $toUserName, $fromUserName, $time, $msgtype, $content);
-        echo $info;
-        exit;
     }
 }

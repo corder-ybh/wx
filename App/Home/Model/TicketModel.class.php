@@ -50,7 +50,7 @@ class TicketModel extends Model
 			'id' => array('in', $ids),
 		))->limit(8)
 		->order('common_income_money DESC')
-		->getField('id, sp_main_picture, sp_name');
+		->getField('id, sp_main_picture, sp_name, sp_price, yhq_value');
 		return $imgs;
 	}
 }
